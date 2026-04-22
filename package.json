@@ -16,7 +16,8 @@
     "format:write": "prettier . --write",
     "test": "jest",
     "test:watch": "jest --watch",
-    "test:ci": "jest --runInBand",
+    "test:ci": "jest --ci --runInBand --passWithNoTests",
+    "check": "npm run lint && npm run stylelint && npm run format && npm run typecheck && npm run test:ci && npm run build",
     "prepare": "husky"
   },
   "dependencies": {

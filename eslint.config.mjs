@@ -9,11 +9,12 @@ export default defineConfig(
   {
     ignores: ['dist', 'coverage', 'node_modules', 'cypress', '.husky'],
   },
+
   js.configs.recommended,
-  ...tseslint.configs.recommended,
-  ...tseslint.configs.recommendedTypeChecked,
+
   {
     files: ['**/*.{ts,tsx}'],
+    extends: [...tseslint.configs.recommended, ...tseslint.configs.recommendedTypeChecked],
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'module',
@@ -38,11 +39,16 @@ export default defineConfig(
       '@typescript-eslint/no-floating-promises': 'error',
     },
   },
+
   {
-    files: ['**/*.{js,mjs}'],
+    files: ['**/*.{js,mjs,cjs}'],
+    extends: [tseslint.configs.disableTypeChecked],
     languageOptions: {
+      ecmaVersion: 'latest',
+      sourceType: 'module',
       globals: {
         ...globals.node,
+        ...globals.jest,
       },
     },
   },
