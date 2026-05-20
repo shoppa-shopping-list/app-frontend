@@ -1,0 +1,146 @@
+[
+  {
+    "id": 1,
+    "name": "Яблоки",
+    "description": "",
+    "status": "catalog",
+    "priority": "normal",
+    "color": "red"
+  },
+  {
+    "id": 2,
+    "name": "Клубника",
+    "description": "",
+    "status": "cart",
+    "priority": "special",
+    "color": "red"
+  },
+  {
+    "id": 3,
+    "name": "Помидоры",
+    "description": "",
+    "status": "catalog",
+    "priority": "normal",
+    "color": "red"
+  },
+  {
+    "id": 4,
+    "name": "Бананы",
+    "description": "",
+    "status": "catalog",
+    "priority": "normal",
+    "color": "yellow"
+  },
+  {
+    "id": 5,
+    "name": "Лимоны",
+    "description": "",
+    "status": "cart",
+    "priority": "special",
+    "color": "yellow"
+  },
+  {
+    "id": 6,
+    "name": "Кукуруза",
+    "description": "",
+    "status": "catalog",
+    "priority": "normal",
+    "color": "yellow"
+  },
+  {
+    "id": 7,
+    "name": "Огурцы",
+    "description": "",
+    "status": "cart",
+    "priority": "normal",
+    "color": "green"
+  },
+  {
+    "id": 8,
+    "name": "Авокадо",
+    "description": "",
+    "status": "catalog",
+    "priority": "special",
+    "color": "green"
+  },
+  {
+    "id": 9,
+    "name": "Брокколи",
+    "description": "",
+    "status": "catalog",
+    "priority": "normal",
+    "color": "green"
+  },
+  {
+    "id": 10,
+    "name": "Черника",
+    "description": "",
+    "status": "cart",
+    "priority": "special",
+    "color": "blue"
+  },
+  {
+    "id": 11,
+    "name": "Голубика",
+    "description": "",
+    "status": "catalog",
+    "priority": "normal",
+    "color": "blue"
+  },
+  {
+    "id": 12,
+    "name": "Слива",
+    "description": "",
+    "status": "catalog",
+    "priority": "normal",
+    "color": "purple"
+  },
+  {
+    "id": 13,
+    "name": "Баклажан",
+    "description": "",
+    "status": "cart",
+    "priority": "normal",
+    "color": "purple"
+  },
+  {
+    "id": 14,
+    "name": "Виноград",
+    "description": "",
+    "status": "catalog",
+    "priority": "special",
+    "color": "purple"
+  },
+  {
+    "id": 15,
+    "name": "Молоко",
+    "description": "",
+    "status": "cart",
+    "priority": "normal",
+    "color": "white"
+  },
+  {
+    "id": 16,
+    "name": "Йогурт",
+    "description": "",
+    "status": "catalog",
+    "priority": "normal",
+    "color": "white"
+  },
+  {
+    "id": 17,
+    "name": "Творог",
+    "description": "",
+    "status": "catalog",
+    "priority": "normal",
+    "color": "white"
+  },
+  {
+    "id": 18,
+    "name": "Сыр",
+    "description": "",
+    "status": "cart",
+    "priority": "normal",
+    "color": "white"
+  }
+]

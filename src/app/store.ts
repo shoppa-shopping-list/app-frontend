@@ -1,15 +1,18 @@
 import { configureStore } from '@reduxjs/toolkit';
-import counterReducer from '@/features/counter/counterSlice';
+import { setupListeners } from '@reduxjs/toolkit/query';
 
-export const createAppStore = () =>
-  configureStore({
-    reducer: {
-      counter: counterReducer,
-    },
-  });
+import { baseApi } from '@/shared/api/baseApi';
 
-export const store = createAppStore();
+export const store = configureStore({
+  reducer: {
+    [baseApi.reducerPath]: baseApi.reducer,
+  },
 
-export type AppStore = ReturnType<typeof createAppStore>;
-export type RootState = ReturnType<AppStore['getState']>;
-export type AppDispatch = AppStore['dispatch'];
+  middleware: (getDefaultMiddleware) => getDefaultMiddleware().concat(baseApi.middleware),
+});
+
+setupListeners(store.dispatch);
+
+export type RootState = ReturnType<typeof store.getState>;
+export type AppDispatch = typeof store.dispatch;
+export type AppStore = typeof store;

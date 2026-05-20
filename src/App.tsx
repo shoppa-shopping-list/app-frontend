@@ -1,5 +1,5 @@
 import styles from './App.module.scss';
-import { useAppDispatch, useAppSelector } from '@/app/hooks';
+import { useAppDispatch, useAppSelector } from '@/components/app/hooks';
 import { decrement, increment } from '@/features/counter/counterSlice';
 
 function App() {
