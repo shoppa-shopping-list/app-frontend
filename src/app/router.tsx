@@ -3,6 +3,8 @@ import { createBrowserRouter } from 'react-router';
 import { RootLayout } from './layouts/RootLayout';
 import { HomePage } from '@/pages/HomePage';
 import { ProductsPage } from '@/pages/ProductsPage';
+import { CartPage } from '@/pages/CartPage';
+import { EmptyPage } from '@/pages/EmptyPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 
 export const router = createBrowserRouter([
@@ -22,6 +24,18 @@ export const router = createBrowserRouter([
         element: <ProductsPage />,
         handle: {
           title: 'My Shopping List',
+        },
+      },
+      {
+        path: 'cart',
+        element: <CartPage />,
+        handle: [],
+      },
+      {
+        path: 'empty',
+        element: <EmptyPage />,
+        handle: {
+          title: 'There s empty',
         },
       },
       {

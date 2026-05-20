@@ -1,3 +1,5 @@
+import { ProductContainer } from '@/components/ProductContainer/ProductContainer';
+
 export function HomePage() {
-  return <h1>Home</h1>;
+  return <ProductContainer />;
 }

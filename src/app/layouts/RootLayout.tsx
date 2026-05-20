@@ -1,4 +1,4 @@
-import { Link, Outlet, useMatches } from 'react-router';
+import { Outlet, useMatches } from 'react-router';
 
 type RouteHandle = {
   title?: string;
@@ -16,18 +16,27 @@ export function RootLayout() {
   return (
     <>
       <header>
-        <h1>{title}</h1>
-
         <nav>
-          <Link to="/">Home</Link>
-          <Link to="/shopping-list">Shopping List</Link>
-          <Link to="/settings">Settings</Link>
+          {/* кнопка-бурге для выхода в меню списков */}
+          <button>иконка</button>
+          {/* название списка */}
+          <h1>{title}</h1>
+          {/* кнопка для перехода в корзину, при нахождении в корзине она меняется на кноку "назад в список" */}
+          <button>коризна/назад</button>
         </nav>
+
+        {/* поисковый инпут */}
+        <input type="text" />
       </header>
 
       <main>
         <Outlet />
       </main>
+
+      <footer>
+        {/* кнопка для добавления товара */}
+        <button>добавить товар</button>
+      </footer>
     </>
   );
 }
