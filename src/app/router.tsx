@@ -1,49 +1,51 @@
-import { createBrowserRouter } from 'react-router';
-
-import { RootLayout } from './layouts/RootLayout';
-import { HomePage } from '@/pages/HomePage';
-import { ProductsPage } from '@/pages/ProductsPage';
-import { CartPage } from '@/pages/CartPage';
-import { EmptyPage } from '@/pages/EmptyPage';
-import { NotFoundPage } from '@/pages/NotFoundPage';
+import { createBrowserRouter, Link } from 'react-router';
+import { App } from './App';
+import { ShoppingPage } from '@/pages/ShoppingPage';
 
 export const router = createBrowserRouter([
   {
-    path: '/',
-    element: <RootLayout />,
+    element: <App />,
+    errorElement: (
+      <main className="gate">
+        <h1>Something went wrong</h1>
+        <p>Please reopen Shoppa to try again.</p>
+        <a href="/">Reload Shoppa</a>
+      </main>
+    ),
     children: [
       {
-        index: true,
-        element: <HomePage />,
-        handle: {
-          title: 'Home',
-        },
+        path: '/',
+        element: <ShoppingPage />,
+        children: [
+          {
+            path: 'products/:productId',
+            lazy: async () => ({
+              Component: (await import('@/features/product-editor/ProductDetails')).ProductDetails,
+            }),
+          },
+        ],
+      },
+      { path: '/cart', element: <ShoppingPage cart /> },
+      {
+        path: '/new',
+        lazy: async () => ({
+          Component: (await import('@/features/product-editor/ProductForm')).ProductForm,
+        }),
       },
       {
-        path: 'shopping-list',
-        element: <ProductsPage />,
-        handle: {
-          title: 'My Shopping List',
-        },
-      },
-      {
-        path: 'cart',
-        element: <CartPage />,
-        handle: [],
-      },
-      {
-        path: 'empty',
-        element: <EmptyPage />,
-        handle: {
-          title: 'There s empty',
-        },
+        path: '/edit/:productId',
+        lazy: async () => ({
+          Component: (await import('@/features/product-editor/ProductForm')).ProductForm,
+        }),
       },
       {
         path: '*',
-        element: <NotFoundPage />,
-        handle: {
-          title: 'Not found',
-        },
+        element: (
+          <main className="gate">
+            <h1>Page not found</h1>
+            <Link to="/">Back to list</Link>
+          </main>
+        ),
       },
     ],
   },

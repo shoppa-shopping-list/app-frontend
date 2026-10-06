@@ -3,3 +3,7 @@ dist
 coverage
 cypress/videos
 cypress/screenshots
+
+playwright-report
+test-results
+openapi.json

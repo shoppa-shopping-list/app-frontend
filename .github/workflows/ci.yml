@@ -1,106 +1,69 @@
 name: CI
-
 on:
   push:
   pull_request:
-  # Добавь только если реально используешь merge queue:
-  # merge_group:
-
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
-
 permissions:
   contents: read
-
 jobs:
-  lint:
-    name: Lint / Stylelint / Prettier
+  checks:
+    name: ${{ matrix.check }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
-
+    strategy:
+      fail-fast: false
+      matrix:
+        check: [lint, stylelint, format:check, typecheck, api:check, test:ci]
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
-          node-version: 24
+          node-version-file: .nvmrc
           cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: ESLint
-        run: npm run lint
-
-      - name: Stylelint
-        run: npm run stylelint
-
-      - name: Prettier check
-        run: npm run format:check
-
-  typecheck:
-    name: Typecheck
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Typecheck
-        run: npm run typecheck
-
-  test:
-    name: Unit tests
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Run tests
-        run: npm run test:ci
-
+      - run: npm ci
+      - run: npm run ${{ matrix.check }}
   build:
-    name: Build
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    needs: [lint, typecheck, test]
-
+    needs: [checks]
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
-          node-version: 24
+          node-version-file: .nvmrc
           cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build
-        run: npm run build
+      - run: npm ci
+      - run: npm run build
+  e2e:
+    name: Playwright / Chromium + WebKit
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: app-frontend
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: app-frontend
+      - uses: actions/checkout@v7
+        with:
+          repository: shoppa-shopping-list/app-backend
+          ref: 0dbbc7367ef600ae1d49a941c6d638276051158c
+          path: app-backend
+          token: ${{ secrets.BACKEND_READ_TOKEN || github.token }}
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: app-frontend/.nvmrc
+          cache: npm
+          cache-dependency-path: |
+            app-frontend/package-lock.json
+            app-backend/package-lock.json
+      - run: npm ci
+      - run: npm ci
+        working-directory: app-backend
+      - name: Check backend contract snapshot
+        run: cmp openapi.json ../app-backend/openapi.json
+      - run: npx playwright install --with-deps chromium webkit
+      - run: npm run test:e2e

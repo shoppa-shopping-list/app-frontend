@@ -1,73 +1,72 @@
-# React + TypeScript + Vite
+# Shoppa — Telegram shopping list
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Мобильный React-фронтенд для двух пользователей Telegram. Общий список продуктов и корзина синхронизируются через SSE. Перенос можно отменить повторным тапом в течение трёх секунд; Frequent персонален для пользователя.
 
-Currently, two official plugins are available:
+## Запуск
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Требуется **Node.js 26.x**, как в бэкенде. Версия задана в `.nvmrc`, `engines` и GitHub Actions.
 
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-]);
+```sh
+nvm install
+nvm use
+npm ci
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Vite проксирует `/api` на `http://127.0.0.1:3000`. Для другого локального адреса:
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x';
-import reactDom from 'eslint-plugin-react-dom';
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-]);
+```sh
+SHOPPA_API_TARGET=http://127.0.0.1:3001 npm run dev
 ```
+
+Production-фронтенд использует относительные `/api/*`: HTML и API раздаёт один бэкенд. Telegram передаёт `initData`, сервер проверяет подпись и выдаёт `httpOnly` cookie. В обычном браузере без сессии показано приглашение открыть Telegram; авторизация не отключается для development.
+
+## Локальный предпросмотр с тестовыми данными
+
+Нужен соседний `../app-backend` с установленными зависимостями (`npm ci` в его папке).
+
+```sh
+# Терминал 1: настоящий API с изолированным состоянием в памяти
+node --import tsx e2e/server.mjs
+
+# Терминал 2
+SHOPPA_API_TARGET=http://127.0.0.1:4301 npm run dev -- --port 4173 --strictPort
+```
+
+Открыть `http://127.0.0.1:4173/api/__test/preview`. Этот маршрут существует **только в тестовом сервере**, выдаёт сессию фиктивного пользователя и перенаправляет на список. Тестовый сервер не читает `.env`, не запускает production bootstrap, не меняет сохранённые продукты и не отправляет запросы в Telegram.
+
+## Проверки
+
+```sh
+npm run check          # ESLint, Stylelint, Prettier, TS, OpenAPI, Vitest, build
+npx playwright install chromium webkit
+npm run test:e2e       # реальные API, cookie-auth и SSE в Chromium и WebKit
+```
+
+Playwright сам запускает два локальных сервера. Тесты последовательно сбрасывают состояние тестового сервера, поэтому во время запуска не следует редактировать его данные вручную. Скриншоты и trace неудачных сценариев попадают в `test-results`, HTML-отчёт — в `playwright-report`.
+
+CI использует Node из `.nvmrc`. Статические проверки и модульные тесты запускаются параллельно, сборка — после их успеха. Отдельный job выполняет Playwright с бэкендом, закреплённым на проверенном коммите. Если репозиторий бэкенда закрытый, для checkout потребуется repository secret `BACKEND_READ_TOKEN` с доступом на чтение **только бэкенда**: обычный `GITHUB_TOKEN` другого приватного репозитория не читает.
+
+Порог coverage относится к функциям выбора продуктов и модели отложенных переносов, а не ко всему интерфейсу. Основные пользовательские сценарии проверяются браузерными тестами.
+
+## Сборка для бэкенда
+
+```sh
+npm run build          # статические файлы в dist/
+npm run build:backend  # сборка и копирование в ../app-backend/public/
+```
+
+Существующий Fastify уже раздаёт `public/` и поддерживает SPA fallback. Скрипт копирует только собранные файлы, не изменяет API, настройки сервера или хостинг. Публикацию и HTTPS нужно настроить отдельно.
+
+## Контракт API
+
+`openapi.json` — зафиксированная копия контракта бэкенда для автономной сборки фронтенда. `src/shared/api/generated.ts` генерируется автоматически:
+
+```sh
+npm run api:generate -- --sync  # обновить снимок из соседнего бэкенда и типы
+npm run api:check              # проверить, что типы соответствуют снимку
+```
+
+При обновлении контракта нужно также обновить закреплённый commit бэкенда в CI. Playwright job сравнивает снимок с OpenAPI этого коммита. Вручную редактировать `generated.ts` нельзя: настройки кеша находятся в `src/shared/api/api.ts`. Ответы 204 нормализуются генератором в `void`, а SSE обслуживает `EventSource`, не JSON-запрос RTK Query.
+
+Подробности решений и работы функций — в [docs/implementation.md](docs/implementation.md). Визуальная проверка — в [design-qa.md](design-qa.md).

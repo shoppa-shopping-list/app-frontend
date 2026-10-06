@@ -6,23 +6,23 @@
     "module": "ESNext",
     "types": ["vite/client"],
     "skipLibCheck": true,
-
     "paths": {
       "@/*": ["./src/*"]
     },
-
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
     "moduleDetection": "force",
     "noEmit": true,
     "jsx": "react-jsx",
-
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "erasableSyntaxOnly": true,
-    "noFallthroughCasesInSwitch": true
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitOverride": true
   },
-  "include": ["src", "src/jest.setup.ts"]
+  "include": ["src"]
 }
