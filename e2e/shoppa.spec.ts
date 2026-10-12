@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { CHEESE_ID, telegram } from './fixtures';
+import type { TelegramApp } from '../src/shared/telegram/telegram';
 
 test.beforeEach(async ({ request, page }) => {
   await request.post('http://127.0.0.1:4301/__test/reset');
@@ -281,6 +282,45 @@ test('failed deletion stays queued until the server recovers without an online e
   });
   const cart = await page.request.get('/api/shopping-list');
   expect(await cart.json()).toEqual({ items: [] });
+});
+
+test('Telegram write failure uses a fresh recovery copy across reload and sync', async ({
+  page,
+  context,
+}) => {
+  await page.goto('/');
+  await expect(page.getByRole('button', { name: 'Add Cheese to cart', exact: true })).toBeVisible();
+  await page.evaluate(() => {
+    const device = (window as Window & { Telegram?: { WebApp: TelegramApp } }).Telegram?.WebApp
+      .DeviceStorage;
+    if (!device) throw new Error('Missing DeviceStorage');
+    device.setItem = (_key, _value, callback) => {
+      callback('QUOTA_EXCEEDED', false);
+    };
+  });
+  await context.setOffline(true);
+  await page.getByRole('button', { name: 'Add Cheese to cart', exact: true }).click();
+  await expect(page.getByRole('img', { name: 'Cart has products' })).toBeVisible({ timeout: 7000 });
+  await expect(page.getByRole('alert')).toHaveCount(0);
+  await page.getByRole('link', { name: 'Open cart' }).click();
+  await expect(page.getByRole('button', { name: 'Remove Cheese from cart' })).toBeVisible();
+  // Load the app with working native storage but without access to server data.
+  await page.route('http://127.0.0.1:4173/api/**', (route) => route.abort());
+  await context.setOffline(false);
+  await page.reload();
+  await expect(page.getByRole('button', { name: 'Remove Cheese from cart' })).toBeVisible();
+  await expect(page.getByText('Changes saved on this device. Waiting to sync.')).toBeVisible();
+  await page.unroute('http://127.0.0.1:4173/api/**');
+  await page.getByRole('button', { name: 'Retry', exact: true }).click();
+  await expect(page.getByText('Changes saved on this device. Waiting to sync.')).toBeHidden({
+    timeout: 10000,
+  });
+  const cart = await page.request.get('/api/shopping-list');
+  expect(await cart.json()).toMatchObject({ items: [{ productId: CHEESE_ID }] });
+  await page.getByRole('button', { name: 'Remove Cheese from cart' }).click();
+  await expect(page.getByRole('heading', { name: 'Cart is empty' })).toBeVisible({ timeout: 7000 });
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Cart is empty' })).toBeVisible();
 });
 
 test('storage failure leaves the item in the cart with an explicit error', async ({ page }) => {

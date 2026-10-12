@@ -25,6 +25,7 @@ const snapshot = {
   changes: [{ productId: 'cheese', toCart: true, token: 'new-choice' }],
 };
 afterEach(() => {
+  vi.useRealTimers();
   localStorage.clear();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
@@ -91,9 +92,65 @@ it('does not fall back to an older browser copy after a DeviceStorage error', as
     },
   };
   vi.stubGlobal('Telegram', { WebApp: { isVersionAtLeast: () => true, DeviceStorage: device } });
-  expect(await saveOffline('user42', snapshot)).toBe(false);
-  expect(localStorage.getItem('user42')).toBeNull();
+  localStorage.setItem('user42', JSON.stringify({ ...snapshot, changes: [] }));
   await expect(loadOffline('user42')).rejects.toThrow('Could not read saved data');
+  expect(await saveOffline('user42', snapshot)).toBe(true);
+  expect(await loadOffline('user42')).toEqual(snapshot);
+  await expect(loadOffline('user43')).rejects.toThrow('Could not read saved data');
+});
+
+it('keeps the recovery copy authoritative when native storage starts working again', async () => {
+  const setItem = vi.fn<DeviceStorage['setItem']>((_key, _value, callback) => {
+    callback('QUOTA_EXCEEDED', false);
+  });
+  const device: DeviceStorage = {
+    getItem: (_key, callback) => {
+      callback(null, JSON.stringify({ ...snapshot, changes: [] }));
+    },
+    setItem,
+  };
+  vi.stubGlobal('Telegram', { WebApp: { isVersionAtLeast: () => true, DeviceStorage: device } });
+  expect(await saveOffline('user42', snapshot)).toBe(true);
+  expect(localStorage.getItem('user42')).toBeNull();
+  expect(await loadOffline('user42')).toEqual(snapshot);
+  setItem.mockImplementation((_key, _value, callback) => {
+    callback(null, true);
+  });
+  const updated = { ...snapshot, changes: [] };
+  expect(await saveOffline('user42', updated)).toBe(true);
+  expect(await loadOffline('user42')).toEqual(updated);
+  expect(setItem).toHaveBeenCalledTimes(1);
+});
+
+it('saves a recovery copy when Telegram never acknowledges a write', async () => {
+  vi.useFakeTimers();
+  const device: DeviceStorage = {
+    getItem: (_key, callback) => {
+      callback(null, null);
+    },
+    setItem: () => undefined,
+  };
+  vi.stubGlobal('Telegram', { WebApp: { isVersionAtLeast: () => true, DeviceStorage: device } });
+  const saving = saveOffline('user42', snapshot);
+  await vi.advanceTimersByTimeAsync(5000);
+  expect(await saving).toBe(true);
+  expect(await loadOffline('user42')).toEqual(snapshot);
+});
+
+it('reports failure when both native and browser writes fail', async () => {
+  const device: DeviceStorage = {
+    getItem: (_key, callback) => {
+      callback(null, null);
+    },
+    setItem: () => {
+      throw new Error('Unavailable');
+    },
+  };
+  vi.stubGlobal('Telegram', { WebApp: { isVersionAtLeast: () => true, DeviceStorage: device } });
+  vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+    throw new Error('Full');
+  });
+  expect(await saveOffline('user42', snapshot)).toBe(false);
 });
 
 it('can start with DeviceStorage even when browser storage is unavailable', async () => {

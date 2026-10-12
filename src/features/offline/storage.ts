@@ -40,22 +40,44 @@ function callbackResult<T>(start: (done: (result: T) => void) => void, fallback:
 export async function saveOffline(key: string | null, state: OfflineState): Promise<boolean> {
   try {
     if (!key) return false;
+    const recoveryKey = `${key}:recovery`;
+    const value = JSON.stringify(state);
+    // Once selected, keep using this copy: native storage may contain an older write.
+    if (readRecovery(key) !== null) {
+      localStorage.setItem(recoveryKey, value);
+      return true;
+    }
     const device = deviceStorage();
-    if (device)
-      return await callbackResult<boolean>((done) => {
-        device.setItem(key, JSON.stringify(state), (error, stored) => {
+    if (device) {
+      const saved = await callbackResult<boolean>((done) => {
+        device.setItem(key, value, (error, stored) => {
           done(!error && stored === true);
         });
       }, false);
-    localStorage.setItem(key, JSON.stringify(state));
+      if (saved) return true;
+      // Persist the current snapshot, never fall back to the old migration copy.
+      localStorage.setItem(recoveryKey, value);
+      return true;
+    }
+    localStorage.setItem(key, value);
     return true;
   } catch {
     return false;
   }
 }
+function readRecovery(key: string): string | null {
+  try {
+    return localStorage.getItem(`${key}:recovery`);
+  } catch {
+    // DeviceStorage can still work when WebView storage is disabled.
+    return null;
+  }
+}
 export async function loadOffline(key: string | null): Promise<OfflineState> {
   if (!key) return emptyOffline;
   try {
+    const recovery = readRecovery(key);
+    if (recovery !== null) return parseOffline(recovery);
     const device = deviceStorage();
     if (device) {
       const result = await callbackResult<{ ok: boolean; value: string | null }>(
