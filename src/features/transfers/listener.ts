@@ -37,15 +37,28 @@ export function createTransferListener(
           const change = api.getState().offline.changes[0];
           if (!change) break;
           const { productId, toCart } = change;
-          const request = toCart
-            ? api.dispatch(
-                shoppaApi.endpoints.putApiShoppingListByProductId.initiate({ productId }),
-              )
-            : api.dispatch(
-                shoppaApi.endpoints.deleteApiShoppingListByProductId.initiate({ productId }),
-              );
+          let response: Promise<CartItem | null>;
+          let reset: () => void;
+          if (toCart) {
+            const request = api.dispatch(
+              shoppaApi.endpoints.putApiShoppingListByProductId.initiate({ productId }),
+            );
+            response = request.unwrap();
+            reset = () => {
+              request.reset();
+            };
+          } else {
+            const request = api.dispatch(
+              shoppaApi.endpoints.deleteApiShoppingListByProductId.initiate({ productId }),
+            );
+            // DELETE has no response body; normalize void before joining both branches.
+            response = request.unwrap().then(() => null);
+            reset = () => {
+              request.reset();
+            };
+          }
           try {
-            const item = await request.unwrap();
+            const item = await response;
             // Keep the local overlay until the server snapshot has caught up.
             await api
               .dispatch(
@@ -55,7 +68,7 @@ export function createTransferListener(
                 }),
               )
               .unwrap();
-            if (!(await acknowledge(change, item ?? null))) break;
+            if (!(await acknowledge(change, item))) break;
           } catch (error) {
             if (
               toCart &&
@@ -76,7 +89,7 @@ export function createTransferListener(
             // Network, session and server failures all retain the durable queue.
             break;
           } finally {
-            request.reset();
+            reset();
           }
         }
       } finally {
