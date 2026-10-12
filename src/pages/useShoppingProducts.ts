@@ -44,6 +44,7 @@ export function useShoppingProducts(cart: boolean) {
     pending,
     toggle,
     clearCart,
+    hasCartItems: items.length > 0,
     hasPending: Object.values(pending).some(Boolean),
   };
 }

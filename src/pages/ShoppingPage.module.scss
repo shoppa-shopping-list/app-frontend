@@ -87,28 +87,50 @@
 .frequent {
   display: flex;
   gap: 8px;
-  padding: 0 20px;
+  padding: 10px 20px 60px;
+  margin: -10px 0 -60px;
+  pointer-events: none;
   overflow-x: auto;
   scrollbar-width: none;
+}
 
-  button {
-    flex: none;
-    min-height: 36px;
-    padding: 0 14px;
-    border-radius: 18px;
-    background: var(--surface);
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 15px;
-    font-weight: 500;
-  }
+.frequentChip {
+  pointer-events: auto;
+  position: relative;
+  flex: none;
+  align-self: flex-start;
+}
 
-  span {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    box-shadow: inset 0 0 0 1px rgb(0 0 0 / 8%);
+.frequentFace {
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: 18px;
+  background: var(--surface);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.frequentDot {
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--product-color);
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 8%);
+}
+
+.fragments {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+
+  > span {
+    position: absolute;
+    inset: 0;
   }
 }
 
@@ -193,4 +215,23 @@
 
 .cartRows {
   padding-bottom: 30px;
+}
+
+.navIcon {
+  position: relative;
+  display: flex;
+}
+
+.cartIndicator {
+  position: absolute;
+  top: -1px;
+  right: -2px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #0875ee;
+  box-shadow:
+    0 0 2px 0.5px rgb(8 117 238 / 70%),
+    0 0 5px 1px rgb(8 117 238 / 30%);
+  pointer-events: none;
 }

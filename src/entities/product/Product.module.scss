@@ -62,8 +62,10 @@
     content: '';
     position: absolute;
     top: calc(50% - 5px);
-    width: 100%;
+    left: 5px;
+    width: calc(100% - 10px);
     height: 10px;
+    border-radius: 5px 0 0 5px;
     background: linear-gradient(
       90deg,
       transparent,
@@ -81,18 +83,6 @@
     border-radius: 50%;
     background: var(--product-color);
   }
-}
-
-.struck {
-  position: absolute;
-  left: 20px;
-  top: 50%;
-  transform: translateY(-50%);
-  white-space: nowrap;
-  font-size: 17px;
-  color: transparent;
-  text-decoration: line-through;
-  text-decoration-color: var(--text);
 }
 
 .colors {
@@ -140,7 +130,6 @@
     animation: none;
     width: 100%;
 
-    &::before,
     &::after {
       display: none;
     }

@@ -11,7 +11,8 @@ import styles from './ShoppingPage.module.scss';
 
 export function ShoppingPage({ cart = false }: { cart?: boolean }) {
   const [query, setQuery] = useState('');
-  const { all, rows, frequent, pending, toggle, clearCart, hasPending } = useShoppingProducts(cart);
+  const { all, rows, frequent, pending, toggle, clearCart, hasPending, hasCartItems } =
+    useShoppingProducts(cart);
   const filtered = searchProducts(rows, query);
   const searchTerm = query.trim();
   return (
@@ -24,12 +25,17 @@ export function ShoppingPage({ cart = false }: { cart?: boolean }) {
             className={styles.nav}
             aria-label={cart ? 'Back to list' : 'Open cart'}
           >
-            {cart ? <List size={22} /> : <ShoppingCart size={22} />}
+            <span className={styles.navIcon}>
+              {cart ? <List size={22} /> : <ShoppingCart size={22} />}
+              {!cart && hasCartItems && (
+                <span className={styles.cartIndicator} role="img" aria-label="Cart has products" />
+              )}
+            </span>
             {cart ? 'List' : 'Cart'}
           </Link>
         </header>
         {!cart && <ProductSearch query={query} onChange={setQuery} />}
-        {!cart && searchTerm === '' && frequent.length > 0 && (
+        {!cart && searchTerm === '' && (
           <FrequentProducts products={frequent} pending={pending} onToggle={toggle} />
         )}
         {!cart && searchTerm !== '' && <h2 className={styles.matches}>Matches</h2>}

@@ -20,7 +20,7 @@ interface RowProps {
   cart: boolean;
   onToggle: () => void;
 }
-function Sweep({ transfer, name }: { transfer: Transfer; name: string }) {
+function Sweep({ transfer }: { transfer: Transfer }) {
   const [mountedAt] = useState(() => Date.now());
   return (
     <span
@@ -32,9 +32,7 @@ function Sweep({ transfer, name }: { transfer: Transfer; name: string }) {
           '--duration': `${UNDO_MS}ms`,
         } as CSSProperties
       }
-    >
-      <span className={styles.struck}>{name}</span>
-    </span>
+    />
   );
 }
 export function ProductRow({ product, pending, cart, onToggle }: RowProps) {
@@ -67,7 +65,7 @@ export function ProductRow({ product, pending, cart, onToggle }: RowProps) {
         >
           <span className={styles.dot} />
           <span className={styles.name}>{product.name}</span>
-          {pending && <Sweep key={pending.token} transfer={pending} name={product.name} />}
+          {pending && <Sweep key={pending.token} transfer={pending} />}
         </button>
         {!cart && (
           <Link

@@ -384,3 +384,126 @@ test('older Telegram clients retain offline cart support through browser storage
   const cart = await page.request.get('/api/shopping-list');
   expect(await cart.json()).toMatchObject({ items: [{ productId: CHEESE_ID }] });
 });
+
+test('cart indicator, circle trail, text focus and favourite disintegration', async ({
+  page,
+}, testInfo) => {
+  await page.goto('/');
+  const indicator = page.getByRole('img', { name: 'Cart has products' });
+  await expect(indicator).toHaveCount(0);
+  const search = page.getByRole('textbox', { name: 'Search products' });
+  await search.click();
+  await expect(search).toHaveCSS('outline-style', 'none');
+  await page.getByRole('button', { name: 'Add frequent Cheese to cart' }).click();
+  const undo = page.getByRole('button', { name: 'Undo frequent Cheese' });
+  await expect(undo).toHaveCSS('opacity', '0.55');
+  const row = page.getByRole('button', { name: 'Undo move of Cheese' });
+  const trail = await row.evaluate((element) => {
+    const sweep = element.querySelector('[aria-hidden="true"]');
+    if (!sweep) throw new Error('Missing circle trail');
+    const animation = sweep.getAnimations()[0];
+    if (!animation) throw new Error('Missing circle animation');
+    animation.pause();
+    animation.currentTime = 1500;
+    const line = getComputedStyle(sweep, '::before');
+    const dot = getComputedStyle(sweep, '::after');
+    return {
+      lineEnd: parseFloat(line.left) + parseFloat(line.width),
+      dotCenter: sweep.getBoundingClientRect().width - parseFloat(dot.width) / 2,
+      lineHeight: parseFloat(line.height),
+      dotHeight: parseFloat(dot.height),
+    };
+  });
+  expect(trail.lineEnd).toBeCloseTo(trail.dotCenter, 1);
+  expect(trail.lineHeight).toBe(trail.dotHeight);
+  await page.screenshot({ path: testInfo.outputPath('circle-trail.png') });
+  await undo.click();
+  await expect(page.getByRole('button', { name: 'Add frequent Cheese to cart' })).toHaveCSS(
+    'opacity',
+    '1',
+  );
+  await expect(indicator).toHaveCount(0);
+  await page.getByRole('button', { name: 'Add frequent Cheese to cart' }).click();
+  await expect(indicator).toBeVisible({ timeout: 7000 });
+  const fragments = page.getByTestId('favourite-fragments');
+  await expect(fragments).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('favourite-disintegration.png') });
+  await expect(fragments).toHaveCount(0);
+  await expect(undo).toBeHidden();
+  await page.getByRole('link', { name: 'Open cart' }).click();
+  await page.getByRole('button', { name: 'Remove Cheese from cart' }).click();
+  await expect(page.getByRole('heading', { name: 'Cart is empty' })).toBeVisible({ timeout: 7000 });
+  await page.getByRole('link', { name: 'Back to list' }).click();
+  await expect(indicator).toHaveCount(0);
+  await page.getByRole('link', { name: 'Add product' }).click();
+  const name = page.getByRole('textbox', { name: 'Product name' });
+  await name.click();
+  await expect(name).toHaveCSS('outline-style', 'none');
+});
+
+test('last favourites disappear and reduced motion keeps the trail static', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.goto('/');
+  for (const name of ['Cheese', 'Yogurt', 'Croissants', 'Coffee']) {
+    await page.getByRole('button', { name: `Add frequent ${name} to cart` }).click();
+  }
+  const row = page.getByRole('button', { name: 'Undo move of Coffee' });
+  await expect(row.locator('[aria-hidden="true"]')).toHaveCSS('animation-name', 'none');
+  await expect(page.getByRole('region', { name: 'Frequent products' })).toBeHidden({
+    timeout: 7000,
+  });
+  await expect(page.getByRole('img', { name: 'Cart has products' })).toBeVisible();
+  await page.getByRole('link', { name: 'Open cart' }).click();
+  await expect(
+    page.getByRole('list', { name: 'Products in cart' }).getByRole('listitem'),
+  ).toHaveCount(4);
+});
+
+test('browser preview supplies the storage identity and moves favourites into the cart', async ({
+  page,
+}) => {
+  await page.unroute('https://telegram.org/js/telegram-web-app.js');
+  await page.route('https://telegram.org/js/telegram-web-app.js', async (route) => {
+    await route.fulfill({
+      contentType: 'application/javascript',
+      body: `window.Telegram={WebApp:{
+        initData:new URLSearchParams(location.hash.slice(1)).get('tgWebAppData')||'',
+        isVersionAtLeast(){return false},ready(){},expand(){},setHeaderColor(){},
+        setBackgroundColor(){},enableClosingConfirmation(){},disableClosingConfirmation(){},
+        BackButton:{show(){},hide(){},onClick(){},offClick(){}}
+      }};`,
+    });
+  });
+  await page.goto('/api/__test/preview');
+  await page.getByRole('button', { name: 'Add frequent Cheese to cart' }).click();
+  await expect(page.getByRole('img', { name: 'Cart has products' })).toBeVisible({ timeout: 7000 });
+  await expect(page.getByRole('button', { name: 'Undo frequent Cheese' })).toBeHidden();
+  await page.getByRole('link', { name: 'Open cart' }).click();
+  await expect(page.getByRole('button', { name: 'Remove Cheese from cart' })).toBeVisible();
+  await expect
+    .poll(async () => {
+      const response = await page.request.get('/api/shopping-list');
+      const body: unknown = await response.json();
+      return body;
+    })
+    .toMatchObject({ items: [{ productId: CHEESE_ID }] });
+  await page.reload();
+  await expect(page.getByRole('button', { name: 'Remove Cheese from cart' })).toBeVisible();
+  await expect(
+    page.getByText('Could not save on this device. Your product was not moved.', { exact: true }),
+  ).toHaveCount(0);
+});
+
+test('last favourite group finishes its fragments before disappearing', async ({ page }) => {
+  await page.goto('/');
+  for (const name of ['Cheese', 'Yogurt', 'Croissants', 'Coffee']) {
+    await page.getByRole('button', { name: `Add frequent ${name} to cart` }).click();
+  }
+  const fragments = page.getByTestId('favourite-fragments');
+  await expect(fragments.first()).toBeVisible({ timeout: 7000 });
+  await expect(page.getByRole('region', { name: 'Frequent products' })).toBeHidden();
+  await expect(fragments).toHaveCount(0);
+  await page.getByRole('button', { name: 'Add Tomatoes to cart', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Undo move of Tomatoes' })).toBeVisible();
+  await page.getByRole('button', { name: 'Undo move of Tomatoes' }).click();
+});

@@ -57,13 +57,19 @@ app.post('/__test/reset', () => {
 });
 // Local preview convenience, present only in this test harness (never production).
 app.get('/api/__test/preview', async (_request, reply) => {
+  const previewInitData = buildInitData();
   const session = await app.inject({
     method: 'POST',
     url: '/api/session',
-    headers: { authorization: `tma ${buildInitData()}` },
+    headers: { authorization: `tma ${previewInitData}` },
   });
   reply.header('set-cookie', session.headers['set-cookie']);
-  return reply.redirect('/');
+  const launch = new URLSearchParams({
+    tgWebAppData: previewInitData,
+    tgWebAppVersion: '8.0',
+    tgWebAppPlatform: 'web',
+  });
+  return reply.redirect(`/#${launch.toString()}`);
 });
 await app.listen({ host: '127.0.0.1', port: 4301 });
 const shutdown = async () => {
