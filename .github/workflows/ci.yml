@@ -67,3 +67,22 @@ jobs:
         run: cmp openapi.json ../app-backend/openapi.json
       - run: npx playwright install --with-deps chromium webkit
       - run: npm run test:e2e
+  # Frontend ships inside the backend's release tarball, so a green main here re-runs
+  # app-backend's CI on its main, whose release job publishes a build malina pulls.
+  # BACKEND_DEPLOY_TOKEN: fine-grained PAT, only app-backend, only Actions: read & write.
+  trigger-deploy:
+    name: Trigger backend deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [build, e2e]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Dispatch app-backend CI on main
+        env:
+          GH_TOKEN: ${{ secrets.BACKEND_DEPLOY_TOKEN }}
+        run: |
+          if [[ -z "$GH_TOKEN" ]]; then
+            echo "::warning::BACKEND_DEPLOY_TOKEN not set — skipping deploy trigger"
+            exit 0
+          fi
+          gh workflow run ci.yml -R shoppa-shopping-list/app-backend --ref main
