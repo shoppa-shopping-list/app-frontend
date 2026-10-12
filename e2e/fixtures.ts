@@ -15,11 +15,11 @@ export function initData(userId = 42): string {
   const hash = createHmac('sha256', secret).update(data).digest('hex');
   return new URLSearchParams({ ...fields, hash }).toString();
 }
-export async function telegram(page: Page, userId = 42): Promise<void> {
+export async function telegram(page: Page, userId = 42, deviceStorage = true): Promise<void> {
   await page.route('https://telegram.org/js/telegram-web-app.js', async (route) => {
     await route.fulfill({
       contentType: 'application/javascript',
-      body: `window.Telegram={WebApp:{initData:${JSON.stringify(initData(userId))},ready(){},expand(){},setHeaderColor(){},setBackgroundColor(){},enableClosingConfirmation(){},disableClosingConfirmation(){},BackButton:{show(){},hide(){},onClick(){},offClick(){}}}};`,
+      body: `window.Telegram={WebApp:{initData:${JSON.stringify(initData(userId))},isVersionAtLeast(){return ${deviceStorage ? 'true' : 'false'}},DeviceStorage:{getItem(key,cb){setTimeout(()=>{try{cb(null,localStorage.getItem('device:'+key))}catch(e){cb(String(e))}},10)},setItem(key,value,cb){setTimeout(()=>{try{localStorage.setItem('device:'+key,value);cb(null,true)}catch(e){cb(String(e),false)}},10)}},ready(){},expand(){},setHeaderColor(){},setBackgroundColor(){},enableClosingConfirmation(){},disableClosingConfirmation(){},BackButton:{show(){},hide(){},onClick(){},offClick(){}}}};`,
     });
   });
 }

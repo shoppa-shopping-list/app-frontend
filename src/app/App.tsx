@@ -1,4 +1,5 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { syncCart } from '@/features/offline/offlineSlice';
 import { Outlet } from 'react-router';
 import { useProductsQuery, useCartQuery, shoppaApi } from '@/shared/api/api';
 import { useLiveUpdates } from '@/shared/api/useLiveUpdates';
@@ -10,11 +11,33 @@ export function App() {
   const products = useProductsQuery({});
   const cart = useCartQuery();
   const dispatch = useAppDispatch();
+  const snapshot = useAppSelector((state) => state.offline);
+  const [online, setOnline] = useState(navigator.onLine);
+  useEffect(() => {
+    const retry = () => {
+      setOnline(navigator.onLine);
+      dispatch(syncCart());
+    };
+    retry();
+    const timer = window.setInterval(retry, 15000);
+    window.addEventListener('online', retry);
+    window.addEventListener('offline', retry);
+    document.addEventListener('visibilitychange', retry);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('online', retry);
+      window.removeEventListener('offline', retry);
+      document.removeEventListener('visibilitychange', retry);
+    };
+  }, [dispatch]);
   const { message, error } = useAppSelector((state) => state.transfers);
   const refresh = useCallback(() => {
+    dispatch(syncCart());
     dispatch(shoppaApi.util.invalidateTags(['Products', 'Cart']));
   }, [dispatch]);
-  const ready = products.data !== undefined && cart.data !== undefined;
+  const ready =
+    (products.data !== undefined || snapshot.products !== null) &&
+    (cart.data !== undefined || snapshot.items !== null);
   const connected = useLiveUpdates(ready, refresh);
   useAppLifecycle();
   const queryError = products.error ?? cart.error;
@@ -48,9 +71,13 @@ export function App() {
     );
   return (
     <>
-      {(!connected || queryError !== undefined) && (
+      {(!online || !connected || queryError !== undefined || snapshot.changes.length > 0) && (
         <div className="connection" role="status">
-          Reconnecting… Your list may be out of date.
+          {snapshot.changes.length > 0
+            ? 'Changes saved on this device. Waiting to sync.'
+            : !online
+              ? 'Offline. Showing your saved list.'
+              : 'Reconnecting… Your list may be out of date.'}
           <button type="button" onClick={refresh}>
             Retry
           </button>

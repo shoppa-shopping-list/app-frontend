@@ -110,14 +110,20 @@ test('syncs two independent users through real SSE and keeps favourites personal
   await otherContext.close();
 });
 
-test('a server failure restores the row and exposes a retryable error', async ({ page }) => {
+test('a server failure keeps an addition saved until retry', async ({ page }) => {
   await page.goto('/');
   await page.route(`**/api/shopping-list/${CHEESE_ID}`, async (route) => {
     await route.fulfill({ status: 503, json: { error: 'unavailable' } });
   });
   await page.getByRole('button', { name: 'Add Cheese to cart', exact: true }).click();
-  await expect(page.getByRole('alert')).toContainText('Could not move Cheese', { timeout: 7000 });
-  await expect(page.getByRole('button', { name: 'Add Cheese to cart', exact: true })).toBeVisible();
+  await expect(page.getByText('Changes saved on this device. Waiting to sync.')).toBeVisible({
+    timeout: 7000,
+  });
+  await page.getByRole('link', { name: 'Open cart' }).click();
+  await expect(page.getByRole('button', { name: 'Remove Cheese from cart' })).toBeVisible();
+  await page.unroute(`**/api/shopping-list/${CHEESE_ID}`);
+  await page.getByRole('button', { name: 'Retry', exact: true }).click();
+  await expect(page.getByText('Changes saved on this device. Waiting to sync.')).toBeHidden();
 });
 
 test('clear cart allows individual undo and survives navigation', async ({ page }) => {
@@ -205,4 +211,176 @@ test('cancelling and immediately restarting does not send an older timer', async
   expect(writes).toBe(0);
   await page.clock.fastForward(1000);
   await expect.poll(() => writes).toBe(1);
+});
+
+test('offline cart removal is durable, supports undo and preserves another user’s additions', async ({
+  page,
+  context,
+  request,
+}, testInfo) => {
+  await page.goto('/');
+  await expect(page.getByRole('button', { name: 'Add Cheese to cart', exact: true })).toBeVisible();
+  await page.request.put(`/api/shopping-list/${CHEESE_ID}`);
+  await page.getByRole('link', { name: 'Open cart' }).click();
+  await expect(page.getByRole('button', { name: 'Remove Cheese from cart' })).toBeVisible();
+  const cookies = await context.cookies();
+  const headers = { Cookie: cookies.map((cookie) => `${cookie.name}=${cookie.value}`).join('; ') };
+  await context.setOffline(true);
+  await expect(page.getByRole('button', { name: 'Remove Cheese from cart' })).toBeVisible();
+  await page.getByRole('button', { name: 'Remove Cheese from cart' }).click();
+  await page.getByRole('button', { name: 'Undo move of Cheese' }).click();
+  await expect(page.getByRole('button', { name: 'Remove Cheese from cart' })).toBeVisible();
+  await page.getByRole('button', { name: 'Remove Cheese from cart' }).click();
+  await expect(page.getByRole('heading', { name: 'Cart is empty' })).toBeVisible({ timeout: 7000 });
+  await expect(page.getByText('Changes saved on this device. Waiting to sync.')).toBeVisible();
+  await page.evaluate(() => {
+    window.scrollTo(0, 0);
+  });
+  await page.screenshot({ path: testInfo.outputPath('offline-cart.png'), fullPage: true });
+  const serverCart = await request.get('http://127.0.0.1:4301/api/shopping-list', { headers });
+  expect(await serverCart.json()).toMatchObject({ items: [{ productId: CHEESE_ID }] });
+  await request.put(
+    'http://127.0.0.1:4301/api/shopping-list/00000000-0000-4000-8000-000000000002',
+    { headers },
+  );
+  // Reload the frontend with API unavailable: this tests persistence, not Telegram's launcher.
+  await page.route('http://127.0.0.1:4173/api/**', (route) => route.abort());
+  await context.setOffline(false);
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Cart is empty' })).toBeVisible();
+  await expect(page.getByText('Changes saved on this device. Waiting to sync.')).toBeVisible();
+  await page.unroute('http://127.0.0.1:4173/api/**');
+  await page.getByRole('button', { name: 'Retry', exact: true }).click();
+  await expect(page.getByText('Changes saved on this device. Waiting to sync.')).toBeHidden({
+    timeout: 10000,
+  });
+  await expect(page.getByRole('button', { name: 'Remove Yogurt from cart' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Remove Cheese from cart' })).toBeHidden();
+  const finalCart = await request.get('http://127.0.0.1:4301/api/shopping-list', { headers });
+  expect(await finalCart.json()).toMatchObject({
+    items: [{ productId: '00000000-0000-4000-8000-000000000002' }],
+  });
+});
+
+test('failed deletion stays queued until the server recovers without an online event', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await expect(page.getByRole('button', { name: 'Add Cheese to cart', exact: true })).toBeVisible();
+  await page.request.put(`/api/shopping-list/${CHEESE_ID}`);
+  await page.getByRole('link', { name: 'Open cart' }).click();
+  await page.route(`**/api/shopping-list/${CHEESE_ID}`, (route) =>
+    route.fulfill({ status: 503, json: { error: 'unavailable' } }),
+  );
+  await page.getByRole('button', { name: 'Remove Cheese from cart' }).click();
+  await expect(page.getByRole('heading', { name: 'Cart is empty' })).toBeVisible({ timeout: 7000 });
+  await expect(page.getByText('Changes saved on this device. Waiting to sync.')).toBeVisible();
+  await page.unroute(`**/api/shopping-list/${CHEESE_ID}`);
+  await expect(page.getByText('Changes saved on this device. Waiting to sync.')).toBeHidden({
+    timeout: 20000,
+  });
+  const cart = await page.request.get('/api/shopping-list');
+  expect(await cart.json()).toEqual({ items: [] });
+});
+
+test('storage failure leaves the item in the cart with an explicit error', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.getByRole('button', { name: 'Add Cheese to cart', exact: true })).toBeVisible();
+  await page.request.put(`/api/shopping-list/${CHEESE_ID}`);
+  await page.getByRole('link', { name: 'Open cart' }).click();
+  await page.evaluate(() => {
+    Storage.prototype.setItem = () => {
+      throw new DOMException('Storage full', 'QuotaExceededError');
+    };
+  });
+  await page.getByRole('button', { name: 'Remove Cheese from cart' }).click();
+  await expect(page.getByRole('alert')).toContainText('Could not save on this device', {
+    timeout: 7000,
+  });
+  await expect(page.getByRole('button', { name: 'Remove Cheese from cart' })).toBeVisible();
+});
+
+test('offline clear cart syncs automatically when connectivity returns', async ({
+  page,
+  context,
+}) => {
+  await page.goto('/');
+  await expect(page.getByRole('button', { name: 'Add Cheese to cart', exact: true })).toBeVisible();
+  await page.request.put(`/api/shopping-list/${CHEESE_ID}`);
+  await page.request.put('/api/shopping-list/00000000-0000-4000-8000-000000000002');
+  await page.getByRole('link', { name: 'Open cart' }).click();
+  await expect(page.getByRole('listitem')).toHaveCount(2);
+  await context.setOffline(true);
+  await page.getByRole('button', { name: 'Clear cart' }).click();
+  await expect(page.getByRole('heading', { name: 'Cart is empty' })).toBeVisible({ timeout: 7000 });
+  await expect(page.getByText('Changes saved on this device. Waiting to sync.')).toBeVisible();
+  await context.setOffline(false);
+  await expect(page.getByText('Changes saved on this device. Waiting to sync.')).toBeHidden({
+    timeout: 10000,
+  });
+  const cart = await page.request.get('/api/shopping-list');
+  expect(await cart.json()).toEqual({ items: [] });
+});
+
+test('offline additions can be removed and added again, survive reload and sync the final choice', async ({
+  page,
+  context,
+}) => {
+  test.setTimeout(45000);
+  await page.goto('/');
+  const add = page.getByRole('button', { name: 'Add Cheese to cart', exact: true });
+  await expect(add).toBeVisible();
+  await context.setOffline(true);
+  await add.click();
+  await page.getByRole('button', { name: 'Undo move of Cheese' }).click();
+  await expect(add).toBeVisible();
+  await add.click();
+  await expect(add).toBeHidden({ timeout: 7000 });
+  await page.getByRole('link', { name: 'Open cart' }).click();
+  await page.getByRole('button', { name: 'Remove Cheese from cart' }).click();
+  await expect(page.getByRole('heading', { name: 'Cart is empty' })).toBeVisible({ timeout: 7000 });
+  await page.getByRole('link', { name: 'Back to list' }).click();
+  await add.click();
+  await expect(add).toBeHidden({ timeout: 7000 });
+  await page.getByRole('button', { name: 'Add Yogurt to cart', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Undo move of Yogurt' })).toBeHidden({
+    timeout: 7000,
+  });
+  await page.getByRole('link', { name: 'Open cart' }).click();
+  await page.getByRole('button', { name: 'Remove Yogurt from cart' }).click();
+  await expect(page.getByRole('button', { name: 'Undo move of Yogurt' })).toBeHidden({
+    timeout: 7000,
+  });
+  await page.route('http://127.0.0.1:4173/api/**', (route) => route.abort());
+  await context.setOffline(false);
+  await page.reload();
+  await expect(page.getByRole('button', { name: 'Remove Cheese from cart' })).toBeVisible();
+  await expect(page.getByRole('listitem')).toHaveCount(1);
+  await page.unroute('http://127.0.0.1:4173/api/**');
+  await page.getByRole('button', { name: 'Retry', exact: true }).click();
+  await expect(page.getByText('Changes saved on this device. Waiting to sync.')).toBeHidden();
+  const result = await page.request.get('/api/shopping-list');
+  expect(await result.json()).toMatchObject({ items: [{ productId: CHEESE_ID }] });
+});
+
+test('older Telegram clients retain offline cart support through browser storage', async ({
+  page,
+  context,
+}) => {
+  await telegram(page, 42, false);
+  await page.goto('/');
+  await expect(page.getByRole('button', { name: 'Add Cheese to cart', exact: true })).toBeVisible();
+  await context.setOffline(true);
+  await page.getByRole('button', { name: 'Add Cheese to cart', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Undo move of Cheese' })).toBeHidden({
+    timeout: 7000,
+  });
+  await page.getByRole('link', { name: 'Open cart' }).click();
+  await expect(page.getByRole('button', { name: 'Remove Cheese from cart' })).toBeVisible();
+  await context.setOffline(false);
+  await expect(page.getByText('Changes saved on this device. Waiting to sync.')).toBeHidden({
+    timeout: 10000,
+  });
+  const cart = await page.request.get('/api/shopping-list');
+  expect(await cart.json()).toMatchObject({ items: [{ productId: CHEESE_ID }] });
 });

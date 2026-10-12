@@ -56,6 +56,9 @@ const slice = createSlice({
           action.payload.error ??
           `${transfer.name} moved ${transfer.toCart ? 'to your cart' : 'back to your list'}.`;
     },
+    syncFailed: (state, action: PayloadAction<string>) => {
+      state.error = action.payload;
+    },
     dismissError: (state) => {
       state.error = '';
     },

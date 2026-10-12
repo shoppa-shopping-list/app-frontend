@@ -8,9 +8,24 @@ export function useShoppingProducts(cart: boolean) {
   const { data: products } = useProductsQuery({});
   const { data: basket } = useCartQuery();
   const pending = useAppSelector((state) => state.transfers.pending);
+  const snapshot = useAppSelector((state) => state.offline);
   const dispatch = useAppDispatch();
-  const all = products?.products ?? [];
-  const rows = productsWithTransfers(all, basket?.items ?? [], pending, cart);
+  const all = products?.products ?? snapshot.products ?? [];
+  const items = (snapshot.items ?? basket?.items ?? []).filter(
+    (item) => !snapshot.changes.some((change) => change.productId === item.productId),
+  );
+  for (const change of snapshot.changes) {
+    const product = all.find((entry) => entry.id === change.productId);
+    if (change.toCart && product)
+      items.push({
+        productId: product.id,
+        name: product.name,
+        color: product.color,
+        addedAt: '',
+        addedBy: 0,
+      });
+  }
+  const rows = productsWithTransfers(all, items, pending, cart);
   const frequent = rows.filter((product) => product.isFavourite);
   const toggle = (product: Product) => {
     if (pending[product.id]) dispatch(transfers.cancelled(product.id));
