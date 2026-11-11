@@ -90,7 +90,7 @@ export function ShoppingPage({ cart = false }: { cart?: boolean }) {
           </button>
         )}
         <span id="undo-hint" className="sr-only">
-          Tap this product again within three seconds to cancel.
+          Tap this product again within one second to cancel.
         </span>
       </main>
       <Outlet />

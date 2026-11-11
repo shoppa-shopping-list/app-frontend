@@ -52,7 +52,7 @@ test('loads through one Telegram handshake; search, details and color selection 
   expect(errors).toEqual([]);
 });
 
-test('moves only after two seconds, supports undo, and returns bought products', async ({
+test('moves only after one second, supports undo, and returns bought products', async ({
   page,
 }) => {
   await page.goto('/');
@@ -221,12 +221,12 @@ test('cancelling and immediately restarting does not send an older timer', async
       writes++;
   });
   await page.getByRole('button', { name: 'Add Cheese to cart', exact: true }).click();
-  await page.clock.fastForward(1000);
+  await page.clock.fastForward(400);
   await page.getByRole('button', { name: 'Undo move of Cheese' }).click();
   await page.getByRole('button', { name: 'Add Cheese to cart', exact: true }).click();
-  await page.clock.fastForward(1100);
+  await page.clock.fastForward(700);
   expect(writes).toBe(0);
-  await page.clock.fastForward(900);
+  await page.clock.fastForward(300);
   await expect.poll(() => writes).toBe(1);
 });
 
@@ -447,7 +447,7 @@ test('cart indicator, circle trail, text focus and favourite disintegration', as
     const animation = sweep.getAnimations()[0];
     if (!animation) throw new Error('Missing circle animation');
     animation.pause();
-    animation.currentTime = 1500;
+    animation.currentTime = 500;
     const line = getComputedStyle(sweep, '::before');
     const dot = getComputedStyle(sweep, '::after');
     return {
@@ -459,7 +459,7 @@ test('cart indicator, circle trail, text focus and favourite disintegration', as
   });
   expect(trail.lineEnd).toBeCloseTo(trail.dotCenter, 1);
   expect(trail.lineHeight).toBe(trail.dotHeight);
-  await expect(row.locator('[aria-hidden="true"]')).toHaveCSS('animation-duration', '2s');
+  await expect(row.locator('[aria-hidden="true"]')).toHaveCSS('animation-duration', '1s');
   await page.screenshot({ path: testInfo.outputPath('circle-trail.png') });
   await undo.click();
   await expect(page.getByRole('button', { name: 'Add frequent Cheese to cart' })).toHaveCSS(
