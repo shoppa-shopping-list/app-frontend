@@ -1,1 +1,1 @@
-export const UNDO_MS = 3000;
+export const UNDO_MS = 2000;

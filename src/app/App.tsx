@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect } from 'react';
 import { syncCart } from '@/features/offline/offlineSlice';
 import { Outlet } from 'react-router';
 import { useProductsQuery, useCartQuery, shoppaApi } from '@/shared/api/api';
@@ -12,10 +12,8 @@ export function App() {
   const cart = useCartQuery();
   const dispatch = useAppDispatch();
   const snapshot = useAppSelector((state) => state.offline);
-  const [online, setOnline] = useState(navigator.onLine);
   useEffect(() => {
     const retry = () => {
-      setOnline(navigator.onLine);
       dispatch(syncCart());
     };
     retry();
@@ -38,7 +36,7 @@ export function App() {
   const ready =
     (products.data !== undefined || snapshot.products !== null) &&
     (cart.data !== undefined || snapshot.items !== null);
-  const connected = useLiveUpdates(ready, refresh);
+  useLiveUpdates(ready, refresh);
   useAppLifecycle();
   const queryError = products.error ?? cart.error;
   const unauthorized =
@@ -71,18 +69,6 @@ export function App() {
     );
   return (
     <>
-      {(!online || !connected || queryError !== undefined || snapshot.changes.length > 0) && (
-        <div className="connection" role="status">
-          {snapshot.changes.length > 0
-            ? 'Changes saved on this device. Waiting to sync.'
-            : !online
-              ? 'Offline. Showing your saved list.'
-              : 'Reconnecting… Your list may be out of date.'}
-          <button type="button" onClick={refresh}>
-            Retry
-          </button>
-        </div>
-      )}
       <Outlet />
       <div className="sr-only" role="status" aria-live="polite">
         {message}

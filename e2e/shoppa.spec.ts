@@ -1,6 +1,19 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import { CHEESE_ID, telegram } from './fixtures';
 import type { TelegramApp } from '../src/shared/telegram/telegram';
+
+async function expectServerCart(page: Page, productIds: string[]) {
+  await expect
+    .poll(
+      async () => {
+        const response = await page.request.get('/api/shopping-list');
+        const cart = (await response.json()) as { items: { productId: string }[] };
+        return cart.items.map((item) => item.productId).sort();
+      },
+      { timeout: 20000 },
+    )
+    .toEqual([...productIds].sort());
+}
 
 test.beforeEach(async ({ request, page }) => {
   await request.post('http://127.0.0.1:4301/__test/reset');
@@ -24,6 +37,7 @@ test('loads through one Telegram handshake; search, details and color selection 
     page.getByRole('list', { name: 'Products', exact: true }).getByRole('listitem'),
   ).toHaveCount(8);
   expect(sessions).toBe(1);
+  await expect(page.locator('.connection')).toHaveCount(0);
   await page.getByRole('textbox', { name: 'Search products' }).fill('  CHEE ');
   await expect(
     page.getByRole('list', { name: 'Products', exact: true }).getByRole('listitem'),
@@ -38,7 +52,7 @@ test('loads through one Telegram handshake; search, details and color selection 
   expect(errors).toEqual([]);
 });
 
-test('moves only after three seconds, supports undo, and returns bought products', async ({
+test('moves only after two seconds, supports undo, and returns bought products', async ({
   page,
 }) => {
   await page.goto('/');
@@ -111,20 +125,22 @@ test('syncs two independent users through real SSE and keeps favourites personal
   await otherContext.close();
 });
 
-test('a server failure keeps an addition saved until retry', async ({ page }) => {
+test('a server failure keeps an addition saved until automatic retry', async ({ page }) => {
   await page.goto('/');
   await page.route(`**/api/shopping-list/${CHEESE_ID}`, async (route) => {
     await route.fulfill({ status: 503, json: { error: 'unavailable' } });
   });
+  const failedWrite = page.waitForResponse(
+    (response) =>
+      response.url().endsWith(`/api/shopping-list/${CHEESE_ID}`) && response.status() === 503,
+  );
   await page.getByRole('button', { name: 'Add Cheese to cart', exact: true }).click();
-  await expect(page.getByText('Changes saved on this device. Waiting to sync.')).toBeVisible({
-    timeout: 7000,
-  });
+  await failedWrite;
+  await expect(page.locator('.connection')).toHaveCount(0);
   await page.getByRole('link', { name: 'Open cart' }).click();
   await expect(page.getByRole('button', { name: 'Remove Cheese from cart' })).toBeVisible();
   await page.unroute(`**/api/shopping-list/${CHEESE_ID}`);
-  await page.getByRole('button', { name: 'Retry', exact: true }).click();
-  await expect(page.getByText('Changes saved on this device. Waiting to sync.')).toBeHidden();
+  await expectServerCart(page, [CHEESE_ID]);
 });
 
 test('clear cart allows individual undo and survives navigation', async ({ page }) => {
@@ -208,9 +224,9 @@ test('cancelling and immediately restarting does not send an older timer', async
   await page.clock.fastForward(1000);
   await page.getByRole('button', { name: 'Undo move of Cheese' }).click();
   await page.getByRole('button', { name: 'Add Cheese to cart', exact: true }).click();
-  await page.clock.fastForward(2100);
+  await page.clock.fastForward(1100);
   expect(writes).toBe(0);
-  await page.clock.fastForward(1000);
+  await page.clock.fastForward(900);
   await expect.poll(() => writes).toBe(1);
 });
 
@@ -233,7 +249,7 @@ test('offline cart removal is durable, supports undo and preserves another userâ
   await expect(page.getByRole('button', { name: 'Remove Cheese from cart' })).toBeVisible();
   await page.getByRole('button', { name: 'Remove Cheese from cart' }).click();
   await expect(page.getByRole('heading', { name: 'Cart is empty' })).toBeVisible({ timeout: 7000 });
-  await expect(page.getByText('Changes saved on this device. Waiting to sync.')).toBeVisible();
+  await expect(page.locator('.connection')).toHaveCount(0);
   await page.evaluate(() => {
     window.scrollTo(0, 0);
   });
@@ -249,12 +265,9 @@ test('offline cart removal is durable, supports undo and preserves another userâ
   await context.setOffline(false);
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Cart is empty' })).toBeVisible();
-  await expect(page.getByText('Changes saved on this device. Waiting to sync.')).toBeVisible();
+  await expect(page.locator('.connection')).toHaveCount(0);
   await page.unroute('http://127.0.0.1:4173/api/**');
-  await page.getByRole('button', { name: 'Retry', exact: true }).click();
-  await expect(page.getByText('Changes saved on this device. Waiting to sync.')).toBeHidden({
-    timeout: 10000,
-  });
+  await expectServerCart(page, ['00000000-0000-4000-8000-000000000002']);
   await expect(page.getByRole('button', { name: 'Remove Yogurt from cart' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Remove Cheese from cart' })).toBeHidden();
   const finalCart = await request.get('http://127.0.0.1:4301/api/shopping-list', { headers });
@@ -275,11 +288,9 @@ test('failed deletion stays queued until the server recovers without an online e
   );
   await page.getByRole('button', { name: 'Remove Cheese from cart' }).click();
   await expect(page.getByRole('heading', { name: 'Cart is empty' })).toBeVisible({ timeout: 7000 });
-  await expect(page.getByText('Changes saved on this device. Waiting to sync.')).toBeVisible();
+  await expect(page.locator('.connection')).toHaveCount(0);
   await page.unroute(`**/api/shopping-list/${CHEESE_ID}`);
-  await expect(page.getByText('Changes saved on this device. Waiting to sync.')).toBeHidden({
-    timeout: 20000,
-  });
+  await expectServerCart(page, []);
   const cart = await page.request.get('/api/shopping-list');
   expect(await cart.json()).toEqual({ items: [] });
 });
@@ -309,12 +320,9 @@ test('Telegram write failure uses a fresh recovery copy across reload and sync',
   await context.setOffline(false);
   await page.reload();
   await expect(page.getByRole('button', { name: 'Remove Cheese from cart' })).toBeVisible();
-  await expect(page.getByText('Changes saved on this device. Waiting to sync.')).toBeVisible();
+  await expect(page.locator('.connection')).toHaveCount(0);
   await page.unroute('http://127.0.0.1:4173/api/**');
-  await page.getByRole('button', { name: 'Retry', exact: true }).click();
-  await expect(page.getByText('Changes saved on this device. Waiting to sync.')).toBeHidden({
-    timeout: 10000,
-  });
+  await expectServerCart(page, [CHEESE_ID]);
   const cart = await page.request.get('/api/shopping-list');
   expect(await cart.json()).toMatchObject({ items: [{ productId: CHEESE_ID }] });
   await page.getByRole('button', { name: 'Remove Cheese from cart' }).click();
@@ -353,11 +361,9 @@ test('offline clear cart syncs automatically when connectivity returns', async (
   await context.setOffline(true);
   await page.getByRole('button', { name: 'Clear cart' }).click();
   await expect(page.getByRole('heading', { name: 'Cart is empty' })).toBeVisible({ timeout: 7000 });
-  await expect(page.getByText('Changes saved on this device. Waiting to sync.')).toBeVisible();
+  await expect(page.locator('.connection')).toHaveCount(0);
   await context.setOffline(false);
-  await expect(page.getByText('Changes saved on this device. Waiting to sync.')).toBeHidden({
-    timeout: 10000,
-  });
+  await expectServerCart(page, []);
   const cart = await page.request.get('/api/shopping-list');
   expect(await cart.json()).toEqual({ items: [] });
 });
@@ -397,8 +403,7 @@ test('offline additions can be removed and added again, survive reload and sync 
   await expect(page.getByRole('button', { name: 'Remove Cheese from cart' })).toBeVisible();
   await expect(page.getByRole('listitem')).toHaveCount(1);
   await page.unroute('http://127.0.0.1:4173/api/**');
-  await page.getByRole('button', { name: 'Retry', exact: true }).click();
-  await expect(page.getByText('Changes saved on this device. Waiting to sync.')).toBeHidden();
+  await expectServerCart(page, [CHEESE_ID]);
   const result = await page.request.get('/api/shopping-list');
   expect(await result.json()).toMatchObject({ items: [{ productId: CHEESE_ID }] });
 });
@@ -418,9 +423,7 @@ test('older Telegram clients retain offline cart support through browser storage
   await page.getByRole('link', { name: 'Open cart' }).click();
   await expect(page.getByRole('button', { name: 'Remove Cheese from cart' })).toBeVisible();
   await context.setOffline(false);
-  await expect(page.getByText('Changes saved on this device. Waiting to sync.')).toBeHidden({
-    timeout: 10000,
-  });
+  await expectServerCart(page, [CHEESE_ID]);
   const cart = await page.request.get('/api/shopping-list');
   expect(await cart.json()).toMatchObject({ items: [{ productId: CHEESE_ID }] });
 });
@@ -456,6 +459,7 @@ test('cart indicator, circle trail, text focus and favourite disintegration', as
   });
   expect(trail.lineEnd).toBeCloseTo(trail.dotCenter, 1);
   expect(trail.lineHeight).toBe(trail.dotHeight);
+  await expect(row.locator('[aria-hidden="true"]')).toHaveCSS('animation-duration', '2s');
   await page.screenshot({ path: testInfo.outputPath('circle-trail.png') });
   await undo.click();
   await expect(page.getByRole('button', { name: 'Add frequent Cheese to cart' })).toHaveCSS(

@@ -109,21 +109,6 @@ textarea:focus {
   }
 }
 
-.connection {
-  position: sticky;
-  top: 0;
-  z-index: 5;
-  padding: 12px 20px;
-  background: var(--surface);
-  font-size: 14px;
-
-  button {
-    color: var(--accent);
-    margin-left: 8px;
-    min-height: 30px;
-  }
-}
-
 .toast {
   position: fixed;
   z-index: 20;
