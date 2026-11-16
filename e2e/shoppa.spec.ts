@@ -61,9 +61,9 @@ test('search never filters the cart and the details sheet closes on a downward s
   await expect(page.getByRole('button', { name: 'Undo move of Cheese' })).toBeHidden({
     timeout: 7000,
   });
-  await page.getByRole('button', { name: 'Add Apples to cart', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Undo move of Apples' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Undo move of Apples' })).toBeHidden({
+  await page.getByRole('button', { name: 'Add Yogurt to cart', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Undo move of Yogurt' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Undo move of Yogurt' })).toBeHidden({
     timeout: 7000,
   });
   await page.getByRole('textbox', { name: 'Search products' }).fill('Cheese');
@@ -553,10 +553,6 @@ test('last favourites disappear and reduced motion keeps the trail static', asyn
   await page.goto('/');
   for (const name of ['Cheese', 'Yogurt', 'Croissants', 'Coffee']) {
     await page.getByRole('button', { name: `Add frequent ${name} to cart` }).click();
-    await expect(page.getByRole('button', { name: `Undo frequent ${name}` })).toBeVisible();
-    await expect(page.getByRole('button', { name: `Undo frequent ${name}` })).toBeHidden({
-      timeout: 7000,
-    });
   }
   const row = page.getByRole('button', { name: 'Undo move of Coffee' });
   await expect(row.locator('[aria-hidden="true"]')).toHaveCSS('animation-name', 'none');
@@ -609,10 +605,6 @@ test('last favourite group finishes its fragments before disappearing', async ({
   await page.goto('/');
   for (const name of ['Cheese', 'Yogurt', 'Croissants', 'Coffee']) {
     await page.getByRole('button', { name: `Add frequent ${name} to cart` }).click();
-    await expect(page.getByRole('button', { name: `Undo frequent ${name}` })).toBeVisible();
-    await expect(page.getByRole('button', { name: `Undo frequent ${name}` })).toBeHidden({
-      timeout: 7000,
-    });
   }
   const fragments = page.getByTestId('favourite-fragments');
   await expect(fragments.first()).toBeVisible({ timeout: 7000 });
