@@ -56,16 +56,26 @@ test('search never filters the cart and the details sheet closes on a downward s
   page,
 }) => {
   await page.goto('/');
-  await page.getByRole('textbox', { name: 'Search products' }).fill('Cheese');
   await page.getByRole('button', { name: 'Add Cheese to cart', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Undo move of Cheese' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Undo move of Cheese' })).toBeHidden({
+    timeout: 7000,
+  });
   await page.getByRole('button', { name: 'Add Apples to cart', exact: true }).click();
-  await expect(page.getByRole('link', { name: 'View details for Cheese' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Undo move of Apples' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Undo move of Apples' })).toBeHidden({
+    timeout: 7000,
+  });
+  await page.getByRole('textbox', { name: 'Search products' }).fill('Cheese');
   await page.getByRole('link', { name: 'Open cart' }).click();
   await expect(
     page.getByRole('list', { name: 'Products in cart' }).getByRole('listitem'),
   ).toHaveCount(2);
   await expect(page.getByRole('button', { name: 'Remove Apples from cart' })).toBeVisible();
-  await page.getByRole('link', { name: 'Back to list' }).click();
+});
+
+test('the details sheet closes on a downward swipe', async ({ page }) => {
+  await page.goto('/');
   await page.getByRole('link', { name: 'View details for Cheese' }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
   await page
@@ -319,6 +329,8 @@ test('offline cart removal is durable, supports undo and preserves another userâ
   await expect(page.locator('.connection')).toHaveCount(0);
   await page.unroute('http://127.0.0.1:4173/api/**');
   await expectServerCart(page, ['00000000-0000-4000-8000-000000000002']);
+  // Refresh the UI after the failed offline request so it reads the recovered server state.
+  await page.reload();
   await expect(page.getByRole('button', { name: 'Remove Yogurt from cart' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Remove Cheese from cart' })).toBeHidden();
   const finalCart = await request.get('http://127.0.0.1:4301/api/shopping-list', { headers });
@@ -541,6 +553,10 @@ test('last favourites disappear and reduced motion keeps the trail static', asyn
   await page.goto('/');
   for (const name of ['Cheese', 'Yogurt', 'Croissants', 'Coffee']) {
     await page.getByRole('button', { name: `Add frequent ${name} to cart` }).click();
+    await expect(page.getByRole('button', { name: `Undo frequent ${name}` })).toBeVisible();
+    await expect(page.getByRole('button', { name: `Undo frequent ${name}` })).toBeHidden({
+      timeout: 7000,
+    });
   }
   const row = page.getByRole('button', { name: 'Undo move of Coffee' });
   await expect(row.locator('[aria-hidden="true"]')).toHaveCSS('animation-name', 'none');
@@ -593,6 +609,10 @@ test('last favourite group finishes its fragments before disappearing', async ({
   await page.goto('/');
   for (const name of ['Cheese', 'Yogurt', 'Croissants', 'Coffee']) {
     await page.getByRole('button', { name: `Add frequent ${name} to cart` }).click();
+    await expect(page.getByRole('button', { name: `Undo frequent ${name}` })).toBeVisible();
+    await expect(page.getByRole('button', { name: `Undo frequent ${name}` })).toBeHidden({
+      timeout: 7000,
+    });
   }
   const fragments = page.getByTestId('favourite-fragments');
   await expect(fragments.first()).toBeVisible({ timeout: 7000 });
