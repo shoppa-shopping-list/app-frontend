@@ -89,13 +89,13 @@
   gap: 8px;
   padding: 10px 20px 60px;
   margin: -10px 0 -60px;
-  pointer-events: none;
   overflow-x: auto;
+  touch-action: pan-x;
+  -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
 }
 
 .frequentChip {
-  pointer-events: auto;
   position: relative;
   flex: none;
   align-self: flex-start;

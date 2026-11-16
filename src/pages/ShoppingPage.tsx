@@ -13,7 +13,8 @@ export function ShoppingPage({ cart = false }: { cart?: boolean }) {
   const [query, setQuery] = useState('');
   const { all, rows, frequent, pending, toggle, clearCart, hasPending, hasCartItems } =
     useShoppingProducts(cart);
-  const filtered = searchProducts(rows, query);
+  // Поиск относится только к каталогу: корзина всегда показывает весь её список.
+  const filtered = cart ? rows : searchProducts(rows, query);
   const searchTerm = query.trim();
   return (
     <>

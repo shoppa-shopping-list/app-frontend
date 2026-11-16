@@ -52,6 +52,37 @@ test('loads through one Telegram handshake; search, details and color selection 
   expect(errors).toEqual([]);
 });
 
+test('search never filters the cart and the details sheet closes on a downward swipe', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await page.getByRole('textbox', { name: 'Search products' }).fill('Cheese');
+  await page.getByRole('button', { name: 'Add Cheese to cart', exact: true }).click();
+  await page.getByRole('button', { name: 'Add Apples to cart', exact: true }).click();
+  await expect(page.getByRole('link', { name: 'View details for Cheese' })).toBeVisible();
+  await page.getByRole('link', { name: 'Open cart' }).click();
+  await expect(page.getByRole('list', { name: 'Products in cart' }).getByRole('listitem')).toHaveCount(2);
+  await expect(page.getByRole('button', { name: 'Remove Apples from cart' })).toBeVisible();
+  await page.getByRole('link', { name: 'Back to list' }).click();
+  await page.getByRole('link', { name: 'View details for Cheese' }).click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await page.getByRole('dialog').locator('header').evaluate((header) => {
+    header.dispatchEvent(new PointerEvent('pointerdown', { pointerType: 'touch', clientY: 100, bubbles: true }));
+    header.dispatchEvent(new PointerEvent('pointerup', { pointerType: 'touch', clientY: 210, bubbles: true }));
+  });
+  await expect(page.getByRole('dialog')).toBeHidden();
+});
+
+test('frequent products row can be horizontally scrolled', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.getByRole('region', { name: 'Frequent products' })).toBeVisible();
+  const row = page.locator('[class*="frequent"]').filter({ has: page.getByRole('button', { name: /Add frequent/ }) }).first();
+  await expect
+    .poll(async () => row.evaluate((element) => getComputedStyle(element).overflowX))
+    .toBe('auto');
+  await expect(page.getByRole('button', { name: /Add frequent/ }).first()).toBeVisible();
+});
+
 test('moves only after one second, supports undo, and returns bought products', async ({
   page,
 }) => {
