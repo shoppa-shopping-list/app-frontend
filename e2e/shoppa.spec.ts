@@ -71,7 +71,7 @@ test('search never filters the cart and the details sheet closes on a downward s
   await expect(
     page.getByRole('list', { name: 'Products in cart' }).getByRole('listitem'),
   ).toHaveCount(2);
-  await expect(page.getByRole('button', { name: 'Remove Apples from cart' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Remove Yogurt from cart' })).toBeVisible();
 });
 
 test('the details sheet closes on a downward swipe', async ({ page }) => {
